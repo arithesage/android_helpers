@@ -1,0 +1,387 @@
+#!/bin/bash
+
+DEBUG=0
+
+OS=$(uname -o)
+LAST_GOOD_BUILDSERVER_CFG=$HOME/.lastgood_android_buildserver
+
+
+if ! [ "$OS" == "Android" ];
+then
+    echo "This script is only for Android."
+    echo ""
+    exit 1
+fi
+
+
+function askfor_proceed
+{
+    askfor_continue
+
+    if [ "$?" == "1" ];
+    then
+	    echo "Aborting."
+	    echo ""
+	    exit 1
+    fi
+}
+
+
+function pause
+{
+    read -p "Press ENTER to continue."
+}
+
+
+function check_for_needed_envvars
+{
+    echo "Checking for needed environment variables..."
+
+    if [ -f "$LAST_GOOD_BUILDSERVER_CFG" ];
+    then
+        echo "Found $LAST_GOOD_BUILDSERVER_CFG."
+
+        source $LAST_GOOD_BUILDSERVER_CFG
+
+        echo "Saved build server host: $LAST_GOOD_BUILDSERVER_HOST"
+        echo "Saved build server host SSH port: $LAST_GOOD_BUILDSERVER_SSH_PORT"
+        echo "Saved build server host SSH user: $LAST_GOOD_BUILDSERVER_SSH_USER"
+        echo "Saved build server rhost: $LAST_GOOD_BUILDSERVER_RHOST"
+
+        if ! [ "$LAST_GOOD_BUILDSERVER_HOST" == "" ] && 
+           ! [ "$LAST_GOOD_BUILDSERVER_SSH_PORT" == "" ] &&
+           ! [ "$LAST_GOOD_BUILDSERVER_SSH_USER" == "" ] &&
+           ! [ "$LAST_GOOD_BUILDSERVER_RHOST" == "" ];
+        then
+            echo "Last good build server config will be tried first."
+            echo ""
+
+            SAVED_SERVER_INFO_AVAILABLE=1
+
+            return 0
+        else
+            echo "Some needed vars are missing. Ignoring saved values."
+            echo ""
+        fi
+    fi
+
+    if [ "$ANDROID_BUILDSERVER_HOST" == "" ] ||
+       [ "$ANDROID_BUILDSERVER_SSH_PORT" == "" ] ||
+       [ "$ANDROID_BUILDSERVER_SSH_USER" == "" ] ||
+       [ "$ANDROID_BUILDSERVER_RHOST" == "" ];
+    then
+        echo "You need to set ANDROID_BUILDSERVER_HOST, ANDROID_BUILDSERVER_SSH_PORT,"
+        echo "ANDROID_BUILDSERVER_SSH_USER and ANDROID_BUILDSERVER_RHOST environment"
+        echo "variables before be able to use the build server."
+        echo ""
+        echo "ANDROID_BUILDSERVER_HOST: Build server LAN IP"
+        echo ""
+        echo "ANDROID_BUILDSERVER_SSH_PORT/USER: Port and user for connecting to"
+        echo "build server with SSH".
+        echo ""
+        echo "ANDROID_BUILDSERVER_RHOST: Name of the RClone host to use."
+        echo "(We use RClone for simplify the process of copying files over network)"
+        echo ""
+        echo "The ANDROID_BUILDSERVER_WAN_HOST and ANDROID_BUILDSERVER_WAN_RHOST " 
+        echo "variables can be set if building from the Internet but aren't required."
+        echo ""
+        exit 1
+    fi
+
+    if [ "$ANDROID_BUILDSERVER_WAN_HOST" == "" ] ||
+       [ "$ANDROID_BUILDSERVER_WAN_RHOST" == "" ];
+    then
+        echo "This is just a warning."
+        echo "ANDROID_BUILDSERVER_WAN_HOST and ANDROID_BUILDSERVER_WAN_RHOST aren't set."
+        echo "They are needed for building through Internet."
+        echo ""
+    fi
+}
+
+
+function update_lastgood_buildserver
+{
+    echo "export LAST_GOOD_BUILDSERVER_HOST=$1" > $LAST_GOOD_BUILDSERVER_CFG
+    echo "export LAST_GOOD_BUILDSERVER_SSH_PORT=$2" >> $LAST_GOOD_BUILDSERVER_CFG
+    echo "export LAST_GOOD_BUILDSERVER_SSH_USER=$3" >> $LAST_GOOD_BUILDSERVER_CFG
+    echo "export LAST_GOOD_BUILDSERVER_RHOST=$4" >> $LAST_GOOD_BUILDSERVER_CFG
+}
+
+
+function test_buildserver_host
+{
+    HOST_IP=$1
+    SSH_PORT=$2
+    SSH_USER=$3
+    
+    echo "Testing build server host..."
+    testip $HOST_IP
+
+    if ! [ "$?" == "0" ];
+    then
+        echo "Connection failed."
+        return 1
+    else
+        echo "Can reach IP. Let's try SSH..."
+
+        ssh -p $SSH_PORT $SSH_USER@$HOST_IP bash -c 'echo "Hello?"'
+
+        if ! [ "$?" == "0" ];
+        then
+            echo "Connection failed. Build server SSH user or SSH port must be wrong."
+            return 1
+        else
+            echo "Connected. All OK."
+
+            export BUILDSERVER_HOST=$HOST_IP
+            export BUILDSERVER_SSH_PORT=$SSH_PORT
+            export BUILDSERVER_SSH_USER=$SSH_USER
+
+            return 0
+        fi
+    fi
+}
+
+
+function test_buildserver_rhost
+{
+    echo "Testing build server RClone host..."
+    rclone lsf $1: &> /dev/null
+
+    if ! [ "$?" == "0" ];
+    then
+        echo "Connection failed. Check host IP and login in rclone.conf."
+        return 1
+    else
+        echo "Can connect."
+
+        export BUILDSERVER_RHOST=$1
+
+        return 0
+    fi
+}
+
+
+
+
+check_for_needed_envvars
+
+if ! [ "$SAVED_SERVER_INFO_AVAILABLE" == "" ];
+then
+    echo "Testing availability of the last known good build server."
+    test_buildserver_host $LAST_GOOD_BUILDSERVER_HOST $LAST_GOOD_BUILDSERVER_SSH_PORT $LAST_GOOD_BUILDSERVER_SSH_USER
+
+    if ! [ "$?" == "0" ];
+    then
+#        echo "Cannot reach saved host."
+        echo -n ""
+    else
+        echo "Build server reached. We need test rclone now."
+#        echo ""
+
+        test_buildserver_rhost $LAST_GOOD_BUILDSERVER_RHOST
+
+        if ! [ "$?" == "0" ];
+        then
+            echo "Failed connection test."
+            echo ""
+        else
+            echo "Connected."
+            echo "All ok"
+            echo ""
+        fi
+    fi
+fi
+
+if [ "$BUILDSERVER_HOST" == "" ];
+then
+    echo "No saved good build server config found."
+    echo ""
+    echo "Testing the availability of the build server."
+    
+    test_buildserver_host $ANDROID_BUILDSERVER_HOST $ANDROID_BUILDSERVER_SSH_PORT $ANDROID_BUILDSERVER_SSH_USER
+
+    if ! [ "$?" == "0" ];
+    then
+        echo "Cannot reach any build server in LAN."
+        echo "Trying with WAN IP..."
+        echo ""
+
+        test_buildserver_host $ANDROID_BUILDSERVER_WAN_HOST $ANDROID_BUILDSERVER_SSH_PORT $ANDROID_BUILDSERVER_SSH_USER
+
+        if ! [ "$?" == "0" ];
+        then
+            echo "Failed. Build server isn't available. Aborting."
+            echo ""
+            exit 1
+        else
+            echo "Build server reached. Testing with rclone now..."
+            echo ""
+
+            test_buildserver_rhost $ANDROID_BUILDSERVER_WAN_RHOST
+
+            if ! [ "$?" == "0" ];
+            then
+                echo "Failed. Aborting."
+                echo ""
+
+                exit 1
+            else
+                echo "Connected."
+                echo "All went ok. Updating last good server info."
+                
+                update_lastgood_buildserver $BUILDSERVER_HOST $BUILDSERVER_SSH_PORT $BUILDSERVER_SSH_USER $BUILDSERVER_RHOST
+            fi
+        fi
+    else
+        echo "Build server reached. Testing with rclone now..."
+        echo ""
+
+        test_buildserver_rhost $ANDROID_BUILDSERVER_RHOST
+
+        if ! [ "$?" == "0" ];
+        then
+            echo "Failed. Aborting."
+            echo ""
+
+            exit 1
+        else
+            echo "Connected."
+            echo "All went ok. Updating last good server info."
+
+            update_lastgood_buildserver $BUILDSERVER_HOST $BUILDSERVER_SSH_PORT $BUILDSERVER_SSH_USER $BUILDSERVER_RHOST
+        fi
+    fi
+fi
+
+
+if [ "$1" == "" ];
+then
+    PROJECT=$(basename $(realpath .))
+    BUILDING_THIS_PROJECT=1
+else
+    PROJECT=$(basename $(realpath $1))
+    BUILDING_THIS_PROJECT=0
+fi
+
+if [ "$1" == "" ];
+then
+    PROJECT_FULLPATH=$(realpath .)
+else
+    PROJECT_FULLPATH=$(realpath ${PROJECT})
+fi
+
+if [ "$2" == "" ];
+then
+    BUILD_TYPE=Debug
+else
+    BUILD_TYPE=$2
+fi
+
+BUILD_TYPE_LOWERCASE=${BUILD_TYPE,,}
+BUILD_FOLDER=${BUILD_TYPE_LOWERCASE}
+
+REMOTE_APK_FILE=$BUILDSERVER_RHOST:project_builder/Android/${PROJECT}/app/build/outputs/apk/${BUILD_FOLDER}/app-${BUILD_TYPE_LOWERCASE}.apk
+
+LOCAL_APK_FILE=./${PROJECT}/app/build/outputs/apk/${BUILD_FOLDER}/${PROJECT}-${BUILD_TYPE_LOWERCASE}.apk
+
+echo "Build server: ${BUILDSERVER_HOST}"
+echo "RClone host: ${BUILDSERVER_RHOST}"
+echo "Project to build: ${PROJECT}"
+echo "Project full path: ${PROJECT_FULLPATH}"
+
+if [ -f "${PROJECT_FULLPATH}" ];
+then
+    ZIPPED_PROJECT=1
+elif [ -d "${PROJECT_FULLPATH}" ];
+then
+    ZIPPED_PROJECT=0
+else
+    echo "ERROR: Project doesn't exist."
+    echo ""
+    exit 1
+fi
+
+echo "Build type: ${BUILD_TYPE}"
+echo "APK to generate: ${LOCAL_APK_FILE}"
+
+askfor_proceed
+
+if [ "$1" == "-h" ] || [ "$1" == "--h" ] || [ "$ZIPPED_PROJECT" == "" ] && 
+ ! [ "$2" == "Debug" ] && ! [ "$2" == "Release" ];
+then
+    echo "Usage: build_apk <project.zip|project_dir> <Debug|Release>"
+    echo ""
+    exit 1
+fi
+
+if [ -d "$PROJECT" ] || [ "$BUILDING_THIS_PROJECT" == "1" ];
+then
+    echo "Zipping project first..."
+
+    if [ "$BUILDING_THIS_PROJECT" == "1" ];
+    then
+	cd ..
+    fi
+
+    zip -rq $PROJECT.zip $PROJECT
+
+    if ! [ "$?" == "0" ];
+    then
+	echo "Failed zipping project. Aborting."
+	echo ""
+	exit 1
+    fi
+
+    PROJECT_FULLPATH=${PROJECT_FULLPATH}.zip
+
+    echo "Done. Zipped in ${PROJECT_FULLPATH}"
+fi
+
+
+if [ "$DEBUG" == "1" ]; then pause; fi
+
+echo "Sending to build server..."
+rclone copyto ${PROJECT_FULLPATH} $BUILDSERVER_RHOST:project_builder/Android/${PROJECT}.zip
+
+if ! [ "$?" == "0" ];
+then
+    echo "Failed. Aborting."
+    echo ""
+    exit 1
+fi
+
+echo "Done."
+
+echo "Asking server to build a ${BUILD_TYPE} APK..."
+if [ "$DEBUG" == "1" ]; then pause; fi
+
+ssh -p ${BUILDSERVER_SSH_PORT} ${BUILDSERVER_SSH_USER}@${BUILDSERVER_HOST} "source /home/${BUILDSERVER_SSH_USER}/.environment; build_apk /home/${BUILDSERVER_SSH_USER}/project_builder/Android/${PROJECT}.zip ${BUILD_TYPE}"
+
+echo "Checking if build was successful..."
+rclone lsf ${REMOTE_APK_FILE} &> /dev/null
+
+if ! [ "$?" == "0" ];
+then
+    echo "APK not found. Build failed."
+    echo ""
+    exit 1
+fi
+
+echo "APK found. Retrieving..."
+
+mkdir -p ./${PROJECT}/app/build/outputs/apk/${BUILD_FOLDER} &> /dev/null
+rclone copyto ${REMOTE_APK_FILE} ${LOCAL_APK_FILE}
+
+
+if ! [ "$?" == "0" ];
+then
+    echo "Downloading failed, but the file is in remote."
+    echo "Try to retrieving manually from ${APK_FILE}."
+    echo ""
+    exit 1
+fi
+
+echo "All done. APK can be found in '${LOCAL_APK_FILE}'"
+exit 0
+
