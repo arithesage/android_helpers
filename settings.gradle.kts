@@ -21,7 +21,5 @@ dependencyResolutionManagement {
 
 rootProject.name = "Helpers"
 include(":app")
-
-
 include(":helpers")
 

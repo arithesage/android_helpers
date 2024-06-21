@@ -29,6 +29,7 @@ android {
 }
 
 dependencies {
+    implementation (project (":helpers"))
 
     implementation(libs.appcompat)
     implementation(libs.material)
