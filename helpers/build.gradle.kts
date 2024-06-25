@@ -1,20 +1,14 @@
+val libPackage = "me.arithesage.java.android.libs"
+val libName = "helpers"
+val libVersion = "1.0"
+
+
 plugins {
     alias(libs.plugins.androidLibrary)
     id ("maven-publish")
 }
 
-val libPackage = "me.arithesage.java.android.libs"
-val libName = "helpers"
-val libVersion = "1.0"
-
-//val libPackageAsPath = libPackage.replace (".", "/") +
-//                      ("/" + libName + "/" + libVersion)
-
-//val libDebugFilename = (libName + /*"-" + libVersion +*/ "-debug.aar")
-//val libReleseFilename = (libName + /*"-" + libVersion +*/ "-release.aar")
-
-//var local_repo_path = System.getenv("HOME") +
-//                      ("/Proyectos/Propios/Android/.m2/repository")
+val buildDir = layout.buildDirectory.asFile.get().path
 
 android {
     namespace = (libPackage + "." + libName)
@@ -53,18 +47,18 @@ publishing {
     publications {
         create<MavenPublication> ("debug") {
             groupId = libPackage
-            artifactId = libName
+            artifactId = (libName + "-debug")
             version = libVersion
 
-            artifact ("${layout.buildDirectory}/outputs/aar/" + libName + "-debug.aar")
+            artifact ("${buildDir}/outputs/aar/" + libName + "-debug.aar")
         }
 
         create<MavenPublication> ("release") {
             groupId = libPackage
-            artifactId = libName
+            artifactId = (libName + "-release")
             version = libVersion
 
-            artifact ("${layout.buildDirectory}/outputs/aar/" + libName + "-release.aar")
+            artifact ("${buildDir}/outputs/aar/" + libName + "-release.aar")
         }
     }
 }
