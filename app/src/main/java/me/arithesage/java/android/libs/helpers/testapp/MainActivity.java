@@ -13,7 +13,10 @@ public class MainActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        DialogHelpers.Init (this);
-        DialogHelpers.Get().ShowMessage ("Hello!");
+        OSHelpers.Init (this);
+
+        if (OSHelpers.Initialized()) {
+            OSHelpers.Get().ShowNotification ("TestApp", "Hello!");
+        }
     }
 }
