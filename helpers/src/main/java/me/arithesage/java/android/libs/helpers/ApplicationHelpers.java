@@ -118,15 +118,18 @@ public class ApplicationHelpers {
      *
      * @param activity The activity that needs the permission
      * @param permissionId The permission ID
-     * @return
      */
-    public boolean RequestPermission (Activity activity, String permissionId) {
+    public void RequestPermission (Activity activity, String permissionId) {
         int requestId = new java.util.Random().nextInt(Integer.MAX_VALUE);
         String[] permissionsIDs = Utils.ArrayFrom (permissionId);
 
-        ActivityCompat.requestPermissions (activity, permissionsIDs, requestId);
+        if (ActivityCompat.shouldShowRequestPermissionRationale
+                (
+                        activity,
+                        permissionId
+                ))
 
-        return HasPermissions (permissionsIDs);
+        ActivityCompat.requestPermissions (activity, permissionsIDs, requestId);
     }
 
 

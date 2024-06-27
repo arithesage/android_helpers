@@ -33,16 +33,11 @@ public class MainActivity extends AppCompatActivity {
                         );
 
         if (!havePostPermission) {
-            boolean permissionGranted =
-                    ApplicationHelpers.Get().RequestPermission
-                    (
-                            this,
-                            Manifest.permission.POST_NOTIFICATIONS
-                    );
-
-            if (!permissionGranted) {
-                Log.w ("Helpers", "Failed granting permission");
-            }
+            ApplicationHelpers.Get().RequestPermission
+            (
+                    this,
+                    Manifest.permission.POST_NOTIFICATIONS
+            );
         }
 
         Log.d ("DUMMY", "Done.");
@@ -66,31 +61,36 @@ public class MainActivity extends AppCompatActivity {
     {
         super.onRequestPermissionsResult (requestCode, permissions, granted);
 
-        if (granted.length == permissions.length) {
-            DialogHelpers.Get().ShowMessage
-                    (
-                            "All requested permissions were granted."
-                    );
-        } else {
-            StringBuilder notGrantedPermissions = new StringBuilder();
+        int notGrantedPermissions = 0;
+        StringBuilder rejectedPermissionsReport = new StringBuilder();
 
-            notGrantedPermissions.append ("Rejected permissions:\n");
+        rejectedPermissionsReport.append ("Rejected permissions:\n");
 
-            for (int p = 0; p < permissions.length; p ++) {
-                if (granted[p] != PackageManager.PERMISSION_GRANTED) {
-                    notGrantedPermissions.append ("- ");
-                    notGrantedPermissions.append (permissions[p]);
+        for (int p = 0; p < permissions.length; p ++) {
+            if (granted[p] != PackageManager.PERMISSION_GRANTED) {
+                notGrantedPermissions ++;
 
-                    if (p != (permissions.length - 1)) {
-                        notGrantedPermissions.append("\n");
-                    }
+                rejectedPermissionsReport.append ("- ");
+                rejectedPermissionsReport.append (permissions[p]);
+
+                if (p != (permissions.length - 1)) {
+                    rejectedPermissionsReport.append("\n");
                 }
             }
+        }
 
+        if (notGrantedPermissions == 0) {
             DialogHelpers.Get().ShowMessage
-                    (
-                            notGrantedPermissions.toString()
-                    );
+            (
+                "Permission request",
+                "All requested permissions were granted."
+            );
+
+        } else {
+            DialogHelpers.Get().ShowMessage
+            (
+                rejectedPermissionsReport.toString()
+            );
         }
     }
 }

@@ -55,7 +55,7 @@ public class DialogHelpers {
      * Shortcut for showing a message without a title.
      * The dialog will have a close button with the default "Close" caption.
      *
-     * @param message The message to show
+     * @param message Message text
      */
     public void ShowMessage (String message) {
 
@@ -64,11 +64,23 @@ public class DialogHelpers {
 
 
     /**
+     * Shortcut for showing a message with a title
+     * The dialog will have a close button with the default "Close" caption.
+     *
+     * @param title Message title
+     * @param message Message text
+     */
+    public void ShowMessage (String title, String message) {
+        ShowMessage (title, message, "Close");
+    }
+
+
+    /**
      * Shows a simple message.
      *
-     * @param title The dialog's title.
-     * @param message The message to show.
-     * @param closeButtonCaption The label the close button will have.
+     * @param title Message title
+     * @param message Message text
+     * @param closeButtonCaption Close button's label
      */
     public void ShowMessage (String title,
                              String message,
