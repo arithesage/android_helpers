@@ -7,15 +7,25 @@ import android.content.pm.PackageManager;
 
 import androidx.core.app.ActivityCompat;
 
+import java.util.ArrayList;
+import java.util.List;
+
 import me.arithesage.java.libs.Utils;
+
+
+
 
 /**
  * Contains functions to work with the current running application
+ * @noinspection RedundantIfStatement
  */
-@SuppressWarnings ("unused")
+@SuppressWarnings ({"JavadocBlankLines", "unused"})
 public class ApplicationHelpers {
     private static ApplicationHelpers instance = null;
     private Context appContext = null;
+
+    private List<String> deniedPermissions = null;
+    private List<String> requestedPermissions = null;
 
 
     /**
@@ -38,6 +48,8 @@ public class ApplicationHelpers {
         if ((instance == null) && (appContext != null)) {
             instance = new ApplicationHelpers ();
             instance.appContext = appContext;
+            instance.deniedPermissions = new ArrayList<String>();
+            instance.requestedPermissions = new ArrayList<String>();
         }
     }
 
@@ -118,18 +130,41 @@ public class ApplicationHelpers {
      *
      * @param activity The activity that needs the permission
      * @param permissionId The permission ID
+     *
+     * @param aboutPermission An explanation of why we are requesting
+     *                        this permission. The function asks for an
+     *                        array with two strings: One for the message
+     *                        title and a second one for the message itself.
+     *
+     *
      */
-    public void RequestPermission (Activity activity, String permissionId) {
-        int requestId = new java.util.Random().nextInt(Integer.MAX_VALUE);
-        String[] permissionsIDs = Utils.ArrayFrom (permissionId);
+    public void RequestPermission (Activity activity,
+                                   String permissionId,
+                                   String[] aboutPermission)
+    {
+        if (!deniedPermissions.contains (permissionId)) {
+            if (requestedPermissions.contains(permissionId)) {
+                if (ActivityCompat.shouldShowRequestPermissionRationale
+                        (
+                                activity,
+                                permissionId
+                        )) {
+                    if (!DialogHelpers.Initialized()) {
+                        DialogHelpers.Init(appContext);
+                    }
 
-        if (ActivityCompat.shouldShowRequestPermissionRationale
-                (
-                        activity,
-                        permissionId
-                ))
+                    String messageTitle = aboutPermission[0];
+                    String message = aboutPermission[1];
 
-        ActivityCompat.requestPermissions (activity, permissionsIDs, requestId);
+                    DialogHelpers.Get().ShowMessage(messageTitle, message);
+                }
+            }
+
+            int requestId = Utils.GenerateID();
+            String[] permissionsIDs = Utils.ArrayFrom(permissionId);
+
+            ActivityCompat.requestPermissions(activity, permissionsIDs, requestId);
+        }
     }
 
 
@@ -139,14 +174,39 @@ public class ApplicationHelpers {
      * @param activity The activity that needs the permissions
      * @param permissionsIDs All the needed permissions IDs
      *
+     * @param aboutPermissions An explanation of why we are requesting
+     *                        this permission. The function asks for an
+     *                        array with two strings: One for the message
+     *                        title and a second one for the message itself.
+     *
      * @return True only if all the required permissions have been granted
      */
-    public boolean RequestPermissions (Activity activity, String... permissionsIDs) {
-        int requestId = new java.util.Random().nextInt(Integer.MAX_VALUE);
+    public boolean RequestPermissions (Activity activity,
+                                       String[] permissionsIDs,
+                                       String[] aboutPermissions) {
+
+        if (Utils.InCollection(deniedPermissions, permissionsIDs, false)) {
+
+        }
+
+        int requestId = Utils.GenerateID();
 
         ActivityCompat.requestPermissions (activity, permissionsIDs, requestId);
 
         return HasPermissions (permissionsIDs);
+    }
+
+
+    /**
+     * This permission has been requested twice and we denied both,
+     * so don't bother with it anymore.
+     *
+     * @param permissionId
+     */
+    public void stopRequestingThisPermission (String permissionId) {
+        if (!deniedPermissions.contains (permissionId)) {
+            deniedPermissions.add (permissionId);
+        }
     }
 }
 

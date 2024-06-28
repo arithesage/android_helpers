@@ -1,5 +1,6 @@
 package me.arithesage.java.libs;
 
+import java.util.Collection;
 import java.util.Random;
 
 
@@ -27,6 +28,35 @@ public class Utils {
      */
     public static int GenerateID () {
         return new Random().nextInt(Integer.MAX_VALUE);
+    }
+
+
+    /**
+     * Check if one or all of the given objects are in a collection
+     *
+     * @param collection The collection were we are searching
+     * @param objs A bunch of objects
+     * @param checkForAll Indicates if the collection must contain all objects
+     *                    or only one.
+     */
+    public static <T extends Object> boolean InCollection (
+            Collection<T> collection,
+            T[] objs,
+            boolean checkForAll)
+    {
+        int itemsFound = 0;
+
+        for (T item : objs) {
+            if (collection.contains (item)) {
+                if (!checkForAll) {
+                    return true;
+                }
+
+                itemsFound ++;
+            }
+        }
+
+        return (itemsFound == objs.length);
     }
 
 
